@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Helden Übersicht</title>
+    <!-- Bootstrap CSS einbinden -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">Helden Liste</h1>
+
+        <div class="card mb-4">
+            <div class="card-header">Neuen Helden hinzufügen</div>
+            <div class="card-body">
+                <form id="neuerHeldForm">
+                    <div class="form-group">
+                        <input type="text" id="name" class="form-control" placeholder="Name">
+                    </div>
+                    <div class="form-group">
+                        <input type="text" id="geburtsjahr" class="form-control" placeholder="Geburtsjahr">
+                    </div>
+                    <button type="button" class="btn btn-primary" onclick="heldHinzufuegen()">Held hinzufügen</button>
+                </form>
+            </div>
+        </div>
+
+        <table id="heldenTabelle" class="table table-bordered">
+            <thead class="thead-light">
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Geburtsjahr</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+        <div id="fehlerMeldung" class="alert alert-danger mt-4" style="display: none;"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchHelden();
+        });
+
+        function fetchHelden() {
+            fetch('http://localhost:8080/api/helds') // URL anpassen
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Netzwerkantwort war nicht ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const tbody = document.getElementById('heldenTabelle').getElementsByTagName('tbody')[0];
+                    tbody.innerHTML = ''; // Hier wird die Tabelle geleert
+                    data.forEach(held => {
+                        let reihe = tbody.insertRow();
+                        reihe.insertCell(0).innerText = held.id;
+                        reihe.insertCell(1).innerText = held.name;
+                        reihe.insertCell(2).innerText = held.geburtsjahr;
+                        let loeschButton = reihe.insertCell(3);
+                        loeschButton.innerHTML = `<button onclick="heldBearbeiten(${held.id})" class="btn btn-warning">Bearbeiten</button> <button onclick="heldLoeschen(${held.id})" class="btn btn-danger">Löschen</button>`;
+                    });
+                })
+                .catch(error => {
+                    document.getElementById('fehlerMeldung').innerText = 'Fehler beim Laden der Daten: ' + error.message;
+                });
+        }
+
+        function heldHinzufuegen() {
+            const name = document.getElementById('name').value;
+            const geburtsjahr = document.getElementById('geburtsjahr').value;
+
+            fetch('http://localhost:8080/api/helds', { 
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ name, geburtsjahr })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Netzwerkantwort war nicht ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                fetchHelden(); // Daten neu laden oder direkt zur Tabelle hinzufügen
+            })
+            .catch(error => {
+                document.getElementById('fehlerMeldung').innerText = 'Fehler beim Hinzufügen des Helden: ' + error.message;
+            });
+        }
+
+        function heldLoeschen(id) {
+            fetch(`http://localhost:8080/api/helds/${id}`, { 
+                method: 'DELETE'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Netzwerkantwort war nicht ok');
+                }
+                fetchHelden(); // Aktualisieren Sie die Liste nach dem Löschen
+            })
+            .catch(error => {
+                document.getElementById('fehlerMeldung').innerText = 'Fehler beim Löschen des Helden: ' + error.message;
+            });
+        }
+        function heldBearbeiten(id) {
+            const row = event.target.parentNode.parentNode;
+            const nameCell = row.cells[1];
+            const geburtsjahrCell = row.cells[2];
+        
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.value = nameCell.innerText;
+        
+            const geburtsjahrInput = document.createElement('input');
+            geburtsjahrInput.type = 'text';
+            geburtsjahrInput.value = geburtsjahrCell.innerText;
+        
+            const speichernButton = document.createElement('button');
+            speichernButton.innerText = 'Speichern';
+            speichernButton.className = 'btn btn-success';
+            speichernButton.onclick = function() {
+                const newName = nameInput.value;
+                const newGeburtsjahr = geburtsjahrInput.value;
+        
+                fetch(`http://localhost:8080/api/helds/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ name: newName, geburtsjahr: newGeburtsjahr })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Netzwerkantwort war nicht ok');
+                    }
+                    // Update the table with the new data
+                    nameCell.innerText = newName;
+                    geburtsjahrCell.innerText = newGeburtsjahr;
+                })
+                .catch(error => {
+                    document.getElementById('fehlerMeldung').innerText = 'Fehler beim Bearbeiten des Helden: ' + error.message;
+                })
+                .finally(() => {
+                    // Remove the text inputs and restore the buttons
+                    row.cells[3].innerHTML = `<button onclick="heldBearbeiten(${id})" class="btn btn-warning">Bearbeiten</button> <button onclick="heldLoeschen(${id})" class="btn btn-danger">Löschen</button> `;
+                });
+            };
+        
+            // Replace the cells with the inputs and save button
+            nameCell.innerHTML = '';
+            nameCell.appendChild(nameInput);
+        
+            geburtsjahrCell.innerHTML = '';
+            geburtsjahrCell.appendChild(geburtsjahrInput);
+        
+            row.cells[3].innerHTML = '';
+            row.cells[3].appendChild(speichernButton);
+        }
+    </script>
+</body>
+</html>
